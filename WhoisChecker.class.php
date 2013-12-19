@@ -1,9 +1,17 @@
 <?php
 
-//Class for checking WHOIS for domain
+/**
+ * WhoisChecker.class.php
+ * 
+ * Class for checking the WHOIS information on a domain
+ * 
+ * PEAR::Net_Whois is required for this class!
+ * 
+ **/
 class WhoisChecker {
 
-    private $whois;
+    private $whois; //PEAR::Net_Whois instance
+    
     public static $month_array = array(
         1 => array('1','01','jan','january'),
         2 => array('2','02','feb','february'),
@@ -25,10 +33,9 @@ class WhoisChecker {
         $this->whois = new Net_Whois;
     }
 
-    // Returns WHOIS details for $domain
+    // Returns WHOIS details for given $domain
     public function getWhois($domain) {
         try {
-            //print "getWhois: " . $domain . "\n";
             $domain = $this->validateDomain($domain);
             $data = $this->whois->query($domain);
             return $data;
@@ -41,53 +48,53 @@ class WhoisChecker {
     // Returns domain if valid, else throws Invalid Domain Exception
     private function validateDomain($domain) {
 
-        //Filter unwanted characters from domain
-        //$domain = filter_var($domain, FILTER_SANITIZE_URL);
-        //$domain = filter_var($domain, FILTER_VALIDATE_URL);
-
-        //Check if previous functions returned false and if domain is in valid format
+        //TODO Check if domain is in valid format
         if( $domain )
             return $domain;
         else
             throw new Exception("Invalid Domain Name: \"domain\"");
     }
 
-    // Returns date if valid, else throws Invalid Date Exception
-    private function validateDate($date) {
-	//print "Date 1: $date\n";
-        $unixDate = strtotime($date);
-        //print "Date 2: $unixDate\n";
+    // Returns a date formatted to "Y-m-d H:i:s T" or throws Invalid Date Exception
+    private function validateDate($dateString) {
+	$unixDate = strtotime($dateString);
         $date = date("Y-m-d H:i:s T", $unixDate);
-        //print "Date 3: $date\n";
         return $date;
     }
 
-    // Returns the expiration date for $domain in the following format: YYYY-MM-DD
+    // Returns the expiration date for $domain in the following format: Y-m-d H:i:s T
     public function getExpirationDate($domain) {
+        //Gets WHOIS data for domain
         $whoisData = $this->getWhois($domain);
-        //print $whoisData;
+        
+        //converts WHOIS data into an array by line
         $whoisData = nl2br(strtolower($whoisData));
         $whoisData = explode('<br />',$whoisData);
 
-        //look for the expiration information
+        //Line by line, look for the expiration information
         $ret = array();
         foreach($whoisData as $line) {
-            if( (strpos($line, 'expir') !== false) &&
-                (strpos($line, 'notice') === false) &&
+            if( (strpos($line, 'expir') !== false) && //Should contain this
+                (strpos($line, 'notice') === false) && //Should not contain these
                 (strpos($line, 'registrar') === false) &&
                 (strpos($line, 'currently') === false) &&
                 (strpos($line, 'registered until') === false) )
             {
+            	//performing further cleanup on line
                 $line = nl2br($line);
                 $line = str_replace(array("<br />","\n","\r","\t"),"",$line);
 
+		//extracting date; typical format is "expiration date: SOMEDATE"
                 $date = explode(":",$line,2);
                 $date = $date[1];
                 $date = trim($date," \t\r\n\0");
-                $date = $this->validateDate($date);
-                return $date;
+                
+                //format the date into common format and return
+                $formatted_date = $this->validateDate($date);
+                return $formatted_date;
             }
         }
+        //If a line was not found that matched the above conditions, return this string
         return "Date not found in WHOIS";
     }
 }
